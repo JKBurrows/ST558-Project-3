@@ -5,36 +5,22 @@
 library(shiny) 
 library(shinydashboard)
 library(tidyverse)
+library(DT)
 
-# Read in and clean data 
-# This data has been made available by FiveThrityEight
-# here https://github.com/fivethirtyeight/data/tree/master/star-wars-survey
-
-SWCols <- c("id", "seenAny", "fan", "seenI", "seenII", "seenIII", "seenIV", "seenV", "seenVI", "rankI", "rankII", "rankIII", "rankIV", "rankV", "rankVI", "han", "luke", "leia", "anakin", "obiWan", "palpatine", "vader", "lando", "boba", "C3P0", "R2D2", "jarJar", "padme", "yoda", "shotFirst", "familiarExpanded", "fanExpanded", "trekFan", "gender", "age", "HHIncome", "education", "location")
-
-SW <- read_csv("StarWars.csv", skip = 2, col_names = SWCols, col_types = cols(Id = col_double(), .default = col_factor(NULL))) %>% select(-id)
-
-replaceName <- function(vec){
-  newVec <- SW[[vec]] %>% is.na() %>% ifelse("No", "Yes") %>% as.factor()
-  
-  return(newVec)
-}
-
-SW$seenI <- replaceName("seenI")
-SW$seenII <- replaceName("seenII")
-SW$seenIII <- replaceName("seenIII")
-SW$seenIV <- replaceName("seenIV")
-SW$seenV <- replaceName("seenV")
-SW$seenVI <- replaceName("seenVI")
+source("build.R")
 
 ui <- dashboardPage(
   dashboardHeader(
-    title = "Star Wars Viewership" 
+    title = "Star Wars Viewership", 
+    titleWidth = 450
     ), 
   
   dashboardSidebar(
-    menuItem("Home", tabName = "home", icon = icon("journal-whills")), 
-    menuItem("Explore Data", tabName = "EDA", icon = icon("galactic-senate"))
+    sidebarMenu(
+      menuItem("Home", tabName = "home", icon = icon("journal-whills")), 
+      menuItem("Explore Data", tabName = "EDA", icon = icon("galactic-senate")), 
+      menuItem("Cluster Data", tabName = "clust", icon = icon("old-republic"))
+      )
     ), 
   
   dashboardBody(
@@ -47,7 +33,7 @@ ui <- dashboardPage(
           column(width = 6, 
                  h2("About This App"), 
                  box(
-                   p("Info about this app. Describe data."), 
+                   p("Info about this app. Describe data."),
                    width = NULL
                    )
             ), 
@@ -63,18 +49,111 @@ ui <- dashboardPage(
       
       # EDA page 
       tabItem(
-        tabName = "EDA", 
+        tabName = "EDA",
         fluidRow(
+          # Column: select a plot 
+          column(width = 3,
+                 # Box: which info
+                 box(
+                   radioButtons("info", 
+                                "Which Info", 
+                                choices = c("Views", 
+                                            "Ratings")),
+                   width = NULL
+                   ),
+                 conditionalPanel(
+                   condition = "input.info == 'Views'",
+                   box(radioButtons("plots",
+                                  "Which Plot", 
+                                  choices = c("Overall", 
+                                              "Gender",
+                                              "Trek Fan")), 
+                     width = NULL)), 
+                 conditionalPanel(
+                   condition = "input.info == 'Ratings'", 
+                   box(radioButtons("rankInfo", 
+                                    "Which Plot", 
+                                    choices = c("Overall", 
+                                                "SW Fans")), 
+                       width = NULL))
+                   ),
+          # Display the Plot
+          column(width = 9, 
+                 conditionalPanel(condition = "input.info == 'Views'", 
+                                  plotlyOutput("plotEDA")), 
+                 conditionalPanel(condition = "input.info == 'Ratings'", 
+                                  tableOutput("numericEDA"))
+                 )
+        )
+      ), 
+      
+      # Clustering tab
+      tabItem(
+        tabName = "clust", 
+        fluidRow(
+          column(
+            width = 3, 
+            box(
+              radioButtons("dendSubset", 
+                           "Subsets", 
+                           choices = c("Overall", 
+                                       "Male", 
+                                       "Female")
+              ), 
+              width = NULL
+            )
+            
+          ),
+          column(
+            width = 9,
+            plotOutput("dend")
           )
         )
       )
     )
   )
+)
 
 server <- function(input, output){
+  # EDA tab
+  # Get plot to output 
+  output$plotEDA <- renderPlotly(
+    if(input$plots == "Overall"){
+      pctSeenOverall
+    } else if(input$plots == "Gender"){
+      pctSeenGender
+    } else if(input$plots == "Trek Fan"){
+      pctSeenTrek
+    } else{
+      stop("Error")
+    }
+  ) 
   
+  # EDA tab
+  # Get numeric summary to output 
+  output$numericEDA <- renderTable(
+    if(input$rankInfo == "Overall"){
+      ranks
+    } else if(input$rankInfo == "SW Fans"){
+      fanRanks
+    } else{
+      stop("Error")
+    }
+  )
   
-  }
+  # Clustering tab
+  output$dend <- renderPlot(
+    if(input$dendSubset == "Overall"){
+      hierClust %>% as.dendrogram() %>% plot(main = "", xlab = "")
+    } else if(input$dendSubset == "Male"){
+      hierClustM %>% as.dendrogram() %>% plot(main = "", xlab = "")
+    } else if(input$dendSubset == "Female"){
+      hierClustF %>% as.dendrogram() %>% plot(main = "", xlab = "")
+    } else{
+      stop("Error")
+    }
+  )
+}
 
 
 shinyApp(ui, server)
