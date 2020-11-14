@@ -144,8 +144,33 @@ hierClustM <- SW %>% filter(gender == "Male") %>% na.omit() %>% daisy(metric = "
 # Females 
 hierClustF <- SW %>% filter(gender == "Female") %>% na.omit() %>% daisy(metric = "gower") %>% as.matrix() %>% diana(diss = TRUE, keep.diss = FALSE, keep.data = FALSE)
 
+# Models
+# Boosted tree
 
-
+getBoost <- function(preds){
+  set.seed(234)
+  
+  form <- "fan ~ "
+  
+  for(i in 1:length(preds)){
+    if(i == 1){
+      form <- paste0(form, preds[i])
+    } else{
+      form <- paste0(form, " + ", preds[i])
+    }
+  }
+  
+  form <- formula(form)
+  
+  boostTree <- train(form, 
+                     data = train, 
+                     method = "gbm", 
+                     trControl = trainControl(method = "cv", number = 10),
+                     tuneLength = 3,
+                     verbose = FALSE)
+  
+  return(boostTree)
+}
 
 
 

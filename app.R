@@ -18,8 +18,10 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Home", tabName = "home", icon = icon("journal-whills")), 
-      menuItem("Explore Data", tabName = "EDA", icon = icon("galactic-senate")), 
-      menuItem("Cluster Data", tabName = "clust", icon = icon("old-republic"))
+      menuItem("Explore", tabName = "EDA", icon = icon("galactic-senate")), 
+      menuItem("Cluster", tabName = "clust", icon = icon("old-republic")), 
+      menuItem("Model", tabName = "model", icon = icon("galactic-republic")),
+      menuItem("Download Data", tabName = "down", icon = icon("jedi"))
       )
     ), 
   
@@ -109,6 +111,81 @@ ui <- dashboardPage(
             plotOutput("dend")
           )
         )
+      ), 
+      
+      # Modeling tab
+      tabItem(
+        tabName = "model", 
+        fluidRow(
+          column(
+            width = 3, 
+            box(
+              radioButtons(
+                "whichModel", 
+                "Pick a Model", 
+                choices = c("Boosted Tree", 
+                            "Logistic Regression"), 
+                selected = "Boosted Tree"
+              ), 
+              width = NULL
+            ), 
+            conditionalPanel(
+              condition = "input.whichModel == 'Boosted Tree'", 
+              box(
+                checkboxGroupInput(
+                  "predsBoost", 
+                  "Select Predictors", 
+                  choiceNames = c("Gender", 
+                                  "Trek Fan"), 
+                  choiceValues = c("gender", 
+                                   "trekFan"),
+                  selected = c("gender", 
+                               "trekFan")
+                ), 
+                actionButton(
+                  "train", 
+                  "Train Model"
+                ),
+                width = NULL
+              )
+            )
+          ), 
+          column(
+            width = 9, 
+            box(
+              textOutput("textBoost"),
+              width = NULL
+            )
+          )
+        )
+      ),
+      
+      # Subset and download tab
+      tabItem(
+        tabName = "down", 
+        fluidRow(
+          column(
+            width = 3,
+            box(
+              checkboxGroupInput(
+                "genderSubset", 
+                "Filter by Gender?", 
+                choices = c("Male", "Female", "NA"), 
+                selected = c("Male", "Female", "NA")
+              ), 
+              width = NULL
+            ), 
+            box(
+              downloadButton("download", 
+                             "Download"), 
+              width = NULL
+            )
+          ), 
+          column(
+            width = 9, 
+            DT::dataTableOutput("downloadTable")
+          )
+        )
       )
     )
   )
@@ -153,8 +230,53 @@ server <- function(input, output){
       stop("Error")
     }
   )
-}
+  
+  # Modeling tab
+  output$textBoost <- renderText({
+    input$train
+    
+    boostMod <- isolate(input$predsBoost) %>% getBoost()
+    
+    boostMod$results$Accuracy
+  })
+  
+  # Subset and Download Tab
+  # Get filtered data 
+  SWSub <- reactive({
+    sub <- SW
+    
+    if(!("Male" %in% input$genderSubset)){
+      sub <- sub %>% filter((gender == "Female" | is.na(gender)))
+    }
+    
+    if(!("Female" %in% input$genderSubset)){
+      sub <- sub %>% filter((gender == "Male" | is.na(gender)))
+    }
+    
+    if(!("NA" %in% input$genderSubset)){
+      sub <- sub %>% filter((gender == "Male" | gender == "Female"))
+    }
+    
+    sub
+  })
+  
+  # Subset and download tab
+  # Display filtered data
+  output$downloadTable <- DT::renderDataTable(
+    {SWSub()},
+    options = list(scrollX = TRUE)
+  )
+  
+  # Subset and download tab 
+  # Download filtered data
+  output$download <- downloadHandler(
+    filename = "StarWarsData.csv",
+    content = function(tempFile){
+      write.csv(SWSub(), tempFile, row.names = FALSE)
+      }
+  )
 
+}
 
 shinyApp(ui, server)
 
