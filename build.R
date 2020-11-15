@@ -8,6 +8,8 @@ library(knitr)
 library(caret)
 library(plotly)
 
+set.seed(234)
+
 # Read in and clean Star Wars data 
 # This data has been made available by FiveThrityEight
 # here https://github.com/fivethirtyeight/data/tree/master/star-wars-survey
@@ -231,11 +233,38 @@ clustSubF <- clustSub %>% filter(gender == "Female")
 hierClustF <- clustSubF %>% daisy(metric = "gower") %>% as.matrix() %>% diana(diss = TRUE, keep.diss = FALSE, keep.data = FALSE)
 
 # Models
-# Boosted tree
+# Get training and test sets
+set.seed(234) 
 
-getBoost <- function(preds){
-  set.seed(234)
+subSW <- SW %>% select(fan, gender, trekFan, age, HHIncome, education, location) %>% na.omit()
+
+trainIndex <- createDataPartition(subSW$fan, p = .7, list = FALSE)
+
+train <- subSW[trainIndex,] 
+test <- subSW[-trainIndex,]
+
+# Boosted tree tuning grid
+getBTTuneGr <- function(size){
+  seq1 <- seq(from = 50, to = 250, by = 50)
+  seq2 <- 1:5
+  seq3 <- seq(from = .025, to = .125, by = .025)
+  seq4 <- 8:12
   
+  seq1 <- seq1[1:size]
+  seq2 <- seq2[1:size]
+  seq3 <- seq3[1:size]
+  seq4 <- seq4[1:size]
+  
+  grid <- expand.grid(n.trees = seq1, 
+                      interaction.depth = seq2, 
+                      shrinkage = seq3, 
+                      n.minobsinnode = seq4)
+  
+  return(grid)
+}
+
+# Create formula 
+getFormula <- function(preds){
   form <- "fan ~ "
   
   for(i in 1:length(preds)){
@@ -248,17 +277,37 @@ getBoost <- function(preds){
   
   form <- formula(form)
   
+  return(form) 
+}
+
+
+# Boosted tree 
+getBoost <- function(preds, tnSize){
+  
+  form <- getFormula(preds)
+  
   boostTree <- train(form, 
                      data = train, 
                      method = "gbm", 
                      trControl = trainControl(method = "cv", number = 10),
-                     tuneLength = 3,
+                     tuneGrid = getBTTuneGr(tnSize),
                      verbose = FALSE)
   
   return(boostTree)
 }
 
-
+# Logistic regression 
+getLogReg <- function(preds){
+  
+  form <- getFormula(preds)
+  
+  logReg <- train(form,
+                  data = train, 
+                  method = "glm", 
+                  family = "binomial")
+  
+  return(logReg)
+}
 
 
 

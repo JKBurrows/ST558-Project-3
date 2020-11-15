@@ -8,6 +8,7 @@ library(tidyverse)
 library(DT)
 library(dendextend)
 library(gbm)
+library(formula.tools)
 
 source("build.R")
 
@@ -125,9 +126,6 @@ ui <- dashboardPage(
                             "Male", 
                             "Female")
               ), 
-              width = NULL
-            ),
-            box(
               selectInput(
                 "numClust", 
                 "Number of Clusters", 
@@ -136,6 +134,14 @@ ui <- dashboardPage(
               ), 
               width = NULL
             ), 
+            box(
+              downloadButton(
+                "downloadDend", 
+                "Download Plot"
+              ), 
+              helpText("Download dendrogram with selected clustering"), 
+              width = NULL
+            ),
             box(
               downloadButton(
                 "downloadClust", 
@@ -166,28 +172,42 @@ ui <- dashboardPage(
                             "Logistic Regression"), 
                 selected = "Boosted Tree"
               ), 
-              width = NULL
-            ), 
-            box(
               checkboxGroupInput(
                 "preds", 
                 "Select Predictors", 
                 choiceNames = c("Gender", 
-                                "Trek Fan"), 
+                                "Trek Fan",
+                                "Age", 
+                                "Household Income", 
+                                "Education Level", 
+                                "Location"
+                                ), 
                 choiceValues = c("gender", 
-                                 "trekFan"),
-                selected = c("gender", 
-                             "trekFan")
-              ), 
-              width = NULL
-            ),
-            conditionalPanel(
-              condition = "input.whichModel == 'Boosted Tree'", 
-              box(
-                width = NULL
-              )
-            ), 
-            box(
+                                 "trekFan", 
+                                 "age", 
+                                 "HHIncome", 
+                                 "education", 
+                                 "location"),
+                selected = NULL
+              ),
+              conditionalPanel(
+                condition = "input.whichModel == 'Boosted Tree'", 
+                selectInput(
+                  "tune", 
+                  "Tuning Grid Size", 
+                  choices = c(1, 2, 3, 4, 5)
+                )
+              ),
+              #uiOutput("varImpInput"),
+              conditionalPanel(
+                condition = "output.showHide == 'show'", 
+                radioButtons(
+                        "showVarImp",
+                        "Show Variable Importance?",
+                        choiceNames = c("Yes", "No"),
+                        choiceValues = c(TRUE, FALSE)
+                      )
+              ),
               actionButton(
                 "train", 
                 "Train Model"
@@ -199,12 +219,17 @@ ui <- dashboardPage(
             width = 9, 
             tabBox(
               tabPanel(
+                title = "Model Accuracy",
+                tableOutput("accuracy")
+              ),
+              tabPanel(
                 title = "Variable Importance", 
                 plotOutput("varImportance")
               ),
               tabPanel(
-                title = "Model Accuracy",
-                tableOutput("accuracy")
+                title = "Formula",
+                h5("Your model used the formula:"),
+                uiOutput("formulaMathFormat")
               ),
               tabPanel(
                 title = "Prediction", 
@@ -214,6 +239,10 @@ ui <- dashboardPage(
                     box(
                       uiOutput("genderPredInput"), 
                       uiOutput("trekFanPredInput"),
+                      uiOutput("agePredInput"),
+                      uiOutput("HHIncomePredInput"),
+                      uiOutput("educationPredInput"),
+                      uiOutput("locationPredInput"),
                       width = NULL
                     )
                   ), 
@@ -230,7 +259,8 @@ ui <- dashboardPage(
                   )
                 )
               ),
-              width = NULL
+              width = NULL, 
+              id = "modTabs"
             )
           )
         )
@@ -320,25 +350,44 @@ server <- function(input, output, session){
   
   # Clustering tab
   # Get dendrogram 
-  output$dend <- renderPlot(
+  dend <- reactive({
     if(input$dendSubset == "Overall"){
-      hierClust %>% 
-        as.dendrogram() %>% 
-        color_branches(k = as.numeric(input$numClust)) %>% 
-        plot(main = "Clustering", xlab = "")
+      hierClust %>%
+        as.dendrogram() %>%
+        color_branches(k = as.numeric(input$numClust))
     } else if(input$dendSubset == "Male"){
-      hierClustM %>% 
-        as.dendrogram() %>% 
-        color_branches(k = as.numeric(input$numClust)) %>% 
-        plot(main = "Clustering", xlab = "")
+      hierClustM %>%
+        as.dendrogram() %>%
+        color_branches(k = as.numeric(input$numClust))
     } else if(input$dendSubset == "Female"){
-      hierClustF %>% 
-        as.dendrogram() %>% 
-        color_branches(k = as.numeric(input$numClust)) %>% 
-        plot(main = "Clustering", xlab = "")
+      hierClustF %>%
+        as.dendrogram() %>%
+        color_branches(k = as.numeric(input$numClust))
     } else{
       stop("Error")
     }
+  }
+  )
+  
+  # Clustering tab
+  # Output dendrogram
+  output$dend <- renderPlot(
+    plot(dend(), main = "Clustering", xlab = "")
+  )
+  
+  # Clustering tab
+  # Download dendrogram
+  output$downloadDend <- downloadHandler(
+    filename = "StarWarsDendrogram.png", 
+    content = function(file){
+      png(file, 
+          width = 1000, 
+          height = 600)
+      
+      plot(dend(), main = "Clustering", xlab = "")
+      
+      dev.off()
+      }
   )
   
   # Clustering tab
@@ -372,19 +421,102 @@ server <- function(input, output, session){
   # Modeling tab
   # Create model
   mod <- reactive({
-    req(input$train)
+    withProgress(
+      {
+        req(input$train)
     
-    boostMod <- isolate(input$preds) %>% getBoost()
-    
-    boostMod
-  })
+        if(isolate(input$whichModel) == "Boosted Tree"){
+          boostMod <- getBoost(preds = isolate(input$preds), 
+                         tnSize = isolate(input$tune))
+          boostMod
+        } else if(isolate(input$whichModel) == "Logistic Regression"){
+          logReg <- getLogReg(preds = isolate(input$preds))
+          logReg
+        } else{
+          stop("Error")
+        }
+      }, 
+      message = "Training model"
+    )
+  }
+  )
+  
+  observeEvent(
+    input$train, 
+    {
+      updateTabsetPanel(
+        session, 
+        inputId = "modTabs", 
+        selected = "Model Accuracy"
+      )
+    }
+  )
   
   # Modeling tab
-  # Get variable importance
+  # Variable importance
   output$varImportance <- renderPlot({
     req(input$train)
     
     mod() %>% varImp() %>% plot()
+  })
+  
+  output$showHide <- renderText({
+    if(length(input$preds) > 1){
+      "show"
+    } else{
+      "hide"
+    }
+  })
+  
+  outputOptions(output, "showHide", suspendWhenHidden = FALSE)
+  
+  # output$varImpInput <- renderUI({
+  #   if(length(input$preds) > 1){
+  #     radioButtons(
+  #       "showVarImp", 
+  #       "Show Variable Importance?", 
+  #       choiceNames = c("Yes", "No"), 
+  #       choiceValues = c(TRUE, FALSE)
+  #     )
+  #   }
+  # })
+  
+  hideTab(inputId = "modTabs",
+          target = "Variable Importance")
+  
+  observeEvent(
+    input$train,
+    {
+      if(is.null(input$showVarImp)){
+      hideTab(inputId = "modTabs",
+              target = "Variable Importance")
+      } else if((input$showVarImp == TRUE)){
+        showTab(inputId = "modTabs",
+                target = "Variable Importance")
+      } else if(input$showVarImp == FALSE){
+        hideTab(inputId = "modTabs",
+               target = "Variable Importance")
+      } else{
+        stop("Error") 
+      }
+      
+      if(length(input$preds) <= 1){
+        hideTab(inputId = "modTabs",
+                target = "Variable Importance")
+      }
+    }
+  )
+  
+  # Modeling tab
+  # Formula math format 
+  output$formulaMathFormat <- renderUI({
+    req(input$train) 
+    
+    charForm <- isolate(input$preds) %>% getFormula() %>% as.character() %>% str_split(pattern = "~")
+    
+    charForm <- charForm[[1]][2]
+    
+    withMathJax(h5(paste0("\\(fan\\)", "\\(\\sim\\)", "\\(", charForm, "\\)")))
   })
   
   # Modeling tab
@@ -392,15 +524,14 @@ server <- function(input, output, session){
   output$accuracy <- renderTable({
     req(input$train)
     
-    if(input$whichModel == "Boosted Tree"){
-      boostTrainAcc <- boost$results$Accuracy %>% max()
+    trainAcc <- mod()$results$Accuracy %>% max()
     
-      boostPreds <- predict(boost, test)
-      boostTestAcc <- postResample(boostPreds, test$fan)[1]
+    predictions <- predict(mod(), test)
+      
+    testAcc <- postResample(predictions, test$fan)[1]
     
-      tibble("Train Accuracy" = boostTrainAcc, 
-             "Test Accuracy" = boostTestAcc)
-    }
+    tibble("Train Accuracy" = trainAcc, 
+           "Test Accuracy" = testAcc)
   })
   
   # Modeling tab
@@ -431,9 +562,69 @@ server <- function(input, output, session){
     }
   })
   
+  output$agePredInput <- renderUI({
+    if("age" %in% currentPreds()){
+      selectInput(
+        "agePred",
+        "Age",
+        choices = c("18-29", "30-44", "45-60", "> 60")
+      )
+    }
+  })
+  
+  output$HHIncomePredInput <- renderUI({
+    if("HHIncome" %in% currentPreds()){
+      selectInput(
+        "HHIncomePred",
+        "Household Income",
+        choices = c("$0 - $24,999",
+                    "$25,000 - $49,999", 
+                    "$50,000 - $99,999", 
+                    "$100,000 - $149,999", 
+                    "$150,000+")
+      )
+    }
+  })
+  
+  output$educationPredInput <- renderUI({
+    if("education" %in% currentPreds()){
+      selectInput(
+        "educationPred",
+        "Education Level",
+        choices = c("Less than high school degree", 
+                    "High school degree", 
+                    "Some college or Associate degree", 
+                    "Bachelor degree", 
+                    "Graduate degree")
+      )
+    }
+  })
+  
+  output$locationPredInput <- renderUI({
+    if("location" %in% currentPreds()){
+      selectInput(
+        "locationPred",
+        "Location",
+        choices = c("New England", 
+                    "Middle Atlantic", 
+                    "South Atlantic", 
+                    "East North Central", 
+                    "East South Central", 
+                    "West North Central", 
+                    "West South Central", 
+                    "Mountain", 
+                    "Pacific")
+      )
+    }
+  })
+  
   predSelections <- reactive({
     df <- tibble(gender = "", 
-                 trekFan = "")
+                 trekFan = "", 
+                 age = "", 
+                 HHIncome = "", 
+                 education = "", 
+                 location = "")
     
     if("gender" %in% currentPreds()){
       df$gender <- input$genderPred
@@ -443,17 +634,33 @@ server <- function(input, output, session){
       df$trekFan <- input$trekFanPred
     }
     
+    if("age" %in% currentPreds()){
+      df$age <- input$agePred
+    }
+    
+    if("HHIncome" %in% currentPreds()){
+      df$HHIncome <- input$HHIncomePred
+    }
+    
+    if("education" %in% currentPreds()){
+      df$education <- input$educationPred
+    }
+    
+    if("location" %in% currentPreds()){
+      df$location <- input$locationPred
+    }
+    
     df
   })
   
-  pred <- reactiveValues(pred = NULL)
+  vals <- reactiveValues(pred = NULL)
   
-  observeEvent(input$train, {pred$pred <- ""})
+  observeEvent(input$train, {vals$pred <- NULL})
   
-  observeEvent(input$getPrediction, {pred$pred <- predict(mod(), newdata = isolate(predSelections())) %>% as.character()})
+  observeEvent(input$getPrediction, {vals$pred <- predict(mod(), newdata = isolate(predSelections())) %>% as.character()})
   
   output$prediction <- renderText({
-    pred$pred
+    vals$pred
   })
   
   # Subset and Download Tab
