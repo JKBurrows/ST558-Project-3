@@ -15,7 +15,7 @@ set.seed(234)
 # here https://github.com/fivethirtyeight/data/tree/master/star-wars-survey
 SWCols <- c("Id", "Any", "fan", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI", "rankI", "rankII", "rankIII", "rankIV", "rankV", "rankVI", "han", "luke", "leia", "anakin", "obiWan", "palpatine", "vader", "lando", "boba", "C3P0", "R2D2", "jarJar", "padme", "yoda", "shotFirst", "familiarExpanded", "fanExpanded", "trekFan", "gender", "age", "HHIncome", "education", "location")
 
-SW <- read_csv("StarWars.csv", skip = 2, col_names = SWCols, col_types = cols(Id = col_double(), .default = col_factor(NULL))) %>% select(-Id)
+SW <- read_csv("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/StarWars.csv", skip = 2, col_names = SWCols, col_types = cols(Id = col_double(), .default = col_factor(NULL))) %>% select(-Id)
 
 replaceName <- function(vec){
   newVec <- SW[[vec]] %>% is.na() %>% ifelse("No", "Yes") %>% as.factor()
