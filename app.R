@@ -145,7 +145,7 @@ ui <- dashboardPage(
             box(
               downloadButton(
                 "downloadClust", 
-                "Download", 
+                "Download Data", 
               ), 
               helpText("Download data with selected clustering"),
               width = NULL
@@ -701,7 +701,7 @@ server <- function(input, output, session){
 
 }
 
-shinyApp(ui, server)
+shinyApp(ui, server) %>% runApp()
 
 
 
