@@ -183,10 +183,6 @@ getFavor <- function(vec){
   return(df)
 }
 
-getFavor(SW$han)
-
-SW
-
 favor <- rbind(getFavor(SW$han), 
                getFavor(SW$luke), 
                getFavor(SW$leia), 

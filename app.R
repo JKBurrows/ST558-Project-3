@@ -10,7 +10,7 @@ library(dendextend)
 library(gbm)
 library(formula.tools)
 
-source("https://github.com/JKBurrows/ST558-Project-3/blob/main/build.R")
+source("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/build.R")
 
 ui <- dashboardPage(
   dashboardHeader(
