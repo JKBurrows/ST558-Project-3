@@ -7,6 +7,7 @@ library(shinydashboard)
 library(tidyverse)
 library(DT)
 library(dendextend)
+library(gbm)
 
 source("build.R")
 
@@ -167,31 +168,68 @@ ui <- dashboardPage(
               ), 
               width = NULL
             ), 
+            box(
+              checkboxGroupInput(
+                "preds", 
+                "Select Predictors", 
+                choiceNames = c("Gender", 
+                                "Trek Fan"), 
+                choiceValues = c("gender", 
+                                 "trekFan"),
+                selected = c("gender", 
+                             "trekFan")
+              ), 
+              width = NULL
+            ),
             conditionalPanel(
               condition = "input.whichModel == 'Boosted Tree'", 
               box(
-                checkboxGroupInput(
-                  "predsBoost", 
-                  "Select Predictors", 
-                  choiceNames = c("Gender", 
-                                  "Trek Fan"), 
-                  choiceValues = c("gender", 
-                                   "trekFan"),
-                  selected = c("gender", 
-                               "trekFan")
-                ), 
-                actionButton(
-                  "train", 
-                  "Train Model"
-                ),
                 width = NULL
               )
+            ), 
+            box(
+              actionButton(
+                "train", 
+                "Train Model"
+              ),
+              width = NULL
             )
           ), 
           column(
             width = 9, 
-            box(
-              textOutput("textBoost"),
+            tabBox(
+              tabPanel(
+                title = "Variable Importance", 
+                plotOutput("varImportance")
+              ),
+              tabPanel(
+                title = "Model Accuracy",
+                tableOutput("accuracy")
+              ),
+              tabPanel(
+                title = "Prediction", 
+                fluidRow(
+                  column(
+                    width = 3,
+                    box(
+                      uiOutput("genderPredInput"), 
+                      uiOutput("trekFanPredInput"),
+                      width = NULL
+                    )
+                  ), 
+                  column(
+                    width = 6, 
+                    box(
+                      actionButton(
+                        "getPrediction", 
+                        "Make Prediction"
+                      ),
+                      textOutput("prediction"),
+                      width = NULL
+                    )
+                  )
+                )
+              ),
               width = NULL
             )
           )
@@ -229,7 +267,7 @@ ui <- dashboardPage(
   )
 )
 
-server <- function(input, output){
+server <- function(input, output, session){
   # EDA tab
   # Get plot to output 
   output$plotEDA <- renderPlotly(
@@ -332,12 +370,90 @@ server <- function(input, output){
   )
   
   # Modeling tab
-  output$textBoost <- renderText({
-    input$train
+  # Create model
+  mod <- reactive({
+    req(input$train)
     
-    boostMod <- isolate(input$predsBoost) %>% getBoost()
+    boostMod <- isolate(input$preds) %>% getBoost()
     
-    boostMod$results$Accuracy
+    boostMod
+  })
+  
+  # Modeling tab
+  # Get variable importance
+  output$varImportance <- renderPlot({
+    req(input$train)
+    
+    mod() %>% varImp() %>% plot()
+  })
+  
+  # Modeling tab
+  # Accuracy
+  output$accuracy <- renderTable({
+    req(input$train)
+    
+    if(input$whichModel == "Boosted Tree"){
+      boostTrainAcc <- boost$results$Accuracy %>% max()
+    
+      boostPreds <- predict(boost, test)
+      boostTestAcc <- postResample(boostPreds, test$fan)[1]
+    
+      tibble("Train Accuracy" = boostTrainAcc, 
+             "Test Accuracy" = boostTestAcc)
+    }
+  })
+  
+  # Modeling tab
+  # Prediction 
+  currentPreds <- reactive({
+    req(input$train)
+    
+    isolate(input$preds)
+  })
+  
+  output$genderPredInput <- renderUI({
+    if("gender" %in% currentPreds()){
+      selectInput(
+        "genderPred",
+        "Gender",
+        choices = c("Male", "Female")
+      )
+    }
+  })
+  
+  output$trekFanPredInput <- renderUI({
+    if("trekFan" %in% currentPreds()){
+      selectInput(
+        "trekFanPred",
+        "Trek Fan",
+        choices = c("Yes", "No")
+      )
+    }
+  })
+  
+  predSelections <- reactive({
+    df <- tibble(gender = "", 
+                 trekFan = "")
+    
+    if("gender" %in% currentPreds()){
+      df$gender <- input$genderPred
+    }
+    
+    if("trekFan" %in% currentPreds()){
+      df$trekFan <- input$trekFanPred
+    }
+    
+    df
+  })
+  
+  pred <- reactiveValues(pred = NULL)
+  
+  observeEvent(input$train, {pred$pred <- ""})
+  
+  observeEvent(input$getPrediction, {pred$pred <- predict(mod(), newdata = isolate(predSelections())) %>% as.character()})
+  
+  output$prediction <- renderText({
+    pred$pred
   })
   
   # Subset and Download Tab
