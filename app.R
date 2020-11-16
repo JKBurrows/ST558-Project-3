@@ -1,5 +1,5 @@
 # Author: Joshua Burrows
-# Purpose: 
+# Purpose: Explore Star Wars viewership data
 # Date Created: 18 November 2020
 
 library(shiny) 
@@ -10,7 +10,8 @@ library(dendextend)
 library(gbm)
 library(formula.tools)
 
-source("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/build.R")
+#source("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/build.R")
+source("build.R")
 
 ui <- dashboardPage(
   dashboardHeader(
@@ -38,14 +39,22 @@ ui <- dashboardPage(
           column(width = 6, 
                  h2("About This App"), 
                  box(
-                   p("Info about this app. Describe data."),
+                   h4("The purpose of this app is to explore data about Star Wars viewership. I used data that has been made available", HTML("<a href='https://github.com/fivethirtyeight/data/tree/master/star-wars-survey'>here</a>"), "by FiveThrityEight."),
+                   h4("Use the tabs along the left hand side to navigate."), 
                    width = NULL
                    )
             ), 
           column(width = 6, 
-                 h2("How to Use This App"), 
+                 h2("Tabs"), 
                  box(
-                   p("Info about how to use this app"), 
+                   h3("Explore"), 
+                   h4("Subset the data and create common summaries and plots"),
+                   h3("Cluster"),
+                   h4("Group data using hierarchical clustering and download the results"),
+                   h3("Model"),
+                   h4("Create models to predict who is a Star Wars fan and who isn't"),
+                   h3("Download"),
+                   h4("Subset and download the data"),
                    width = NULL
                    )
             )
@@ -64,7 +73,8 @@ ui <- dashboardPage(
                                 "Which Info", 
                                 choices = c("Views", 
                                             "Movie Ratings",
-                                            "Character Ratings"
+                                            "Character Ratings", 
+                                            "Demographic Info"
                                             )),
                    width = NULL
                    ),
@@ -91,24 +101,55 @@ ui <- dashboardPage(
                                   "Breakdown", 
                                   choiceNames = c("All", 
                                                   "Rebel Scum", 
-                                                  "Imperial"), 
+                                                  "Imperial Bucketheads"), 
                                   choiceValues = c("all", 
                                                    "rebel", 
                                                    "imperial")), 
                      width = NULL
                    )
+                 ), 
+                 conditionalPanel(
+                   condition = "input.info == 'Demographic Info'",
+                   box(
+                     radioButtons(
+                       "demoInfo", 
+                       "Breakdown", 
+                       choiceNames = c("Gender by Age", 
+                                       "Gender by Household Income", 
+                                       "Age by Household Income"), 
+                       choiceValues = c("GA", 
+                                        "GI", 
+                                        "AI")
+                     ), 
+                     width = NULL
+                   )
                  )
                    ),
           # Display the EDA plot or summary
-          column(width = 9, 
-                 conditionalPanel(condition = "input.info == 'Views'", 
-                                  plotlyOutput("plotEDA")), 
-                 conditionalPanel(condition = "input.info == 'Movie Ratings'", 
-                                  h4(textOutput("numericEDATitle")), 
-                                  DT::dataTableOutput("numericEDA")), 
-                 conditionalPanel(condition = "input.info == 'Character Ratings'", 
-                                  DT::dataTableOutput("charNumericEDA"))
-                 )
+          column(
+            width = 9, 
+            conditionalPanel(
+              condition = "input.info == 'Views'", 
+              plotlyOutput("plotEDA")
+            ), 
+            conditionalPanel(
+              condition = "input.info == 'Movie Ratings'", 
+              h3(textOutput("numericEDATitle")), 
+              h4("Rows add to 100"),
+              DT::dataTableOutput("numericEDA")
+            ), 
+            conditionalPanel(
+              condition = "input.info == 'Character Ratings'",
+              h3("Charactor Favorability Ratings as Percentages"),
+              h4("Rows add to 100"),
+              DT::dataTableOutput("charNumericEDA")
+            ), 
+            conditionalPanel(
+              h3(textOutput("demoText")), 
+              condition = "input.info == 'Demographic Info'",
+              tableOutput("demoEDA")
+            )
+          )
         )
       ), 
       
@@ -208,10 +249,11 @@ ui <- dashboardPage(
                         choiceValues = c(TRUE, FALSE)
                       )
               ),
-              actionButton(
-                "train", 
-                "Train Model"
-              ),
+              # actionButton(
+              #   "train", 
+              #   "Train Model"
+              # ),
+              uiOutput("trainModel"),
               width = NULL
             )
           ), 
@@ -232,7 +274,7 @@ ui <- dashboardPage(
                 uiOutput("formulaMathFormat")
               ),
               tabPanel(
-                title = "Prediction", 
+                title = "Predict", 
                 fluidRow(
                   column(
                     width = 3,
@@ -253,7 +295,11 @@ ui <- dashboardPage(
                         "getPrediction", 
                         "Make Prediction"
                       ),
-                      textOutput("prediction"),
+                      width = NULL
+                    ), 
+                    box(
+                      h3("Prediction:"),
+                      h4(uiOutput("prediction")),
                       width = NULL
                     )
                   )
@@ -343,10 +389,46 @@ server <- function(input, output, session){
     {
       if(input$charRankInfo == "all"){
         favor
+      } else if(input$charRankInfo == "rebel"){
+        favorRebel
+      } else if(input$charRankInfo == "imperial"){
+        favorImperial
+      } else{
+        stop("Error")
       }
     }, 
-    options = list(scrollX = TRUE)
+    options = list(scrollX = TRUE),
     )
+  
+  # EDA tab
+  # Demo info table 
+  output$demoEDA <- renderTable(
+    {
+      if(input$demoInfo == "GA"){
+        demoGA
+      } else if(input$demoInfo == "GI"){
+        demoGI
+      } else if(input$demoInfo == "AI"){
+        demoAI
+      } else{
+        stop("Error")
+      }
+    }
+  )
+  
+  output$demoText <- renderText(
+    {
+      if(input$demoInfo == "GA"){
+        "Breakdown of Respondents: Gender by Age"
+      } else if(input$demoInfo == "GI"){
+        "Breakdown of Respondents: Gender by Household Income"
+      } else if(input$demoInfo == "AI"){
+        "Breakdown of Respondents: Age by Household Income"
+      } else{
+        stop("Error")
+      }
+    }
+  )
   
   # Clustering tab
   # Get dendrogram 
@@ -419,12 +501,25 @@ server <- function(input, output, session){
   )
   
   # Modeling tab
+  # UI train button
+  output$trainModel <- renderUI({
+    if(length(input$preds) > 0){
+    actionButton(
+      "train",
+      "Train Model"
+    )
+    } else{
+      h5("Pick Some Predictors")
+    }
+  })
+  
+  # Modeling tab
   # Create model
   mod <- reactive({
     withProgress(
       {
         req(input$train)
-    
+        
         if(isolate(input$whichModel) == "Boosted Tree"){
           boostMod <- getBoost(preds = isolate(input$preds), 
                          tnSize = isolate(input$tune))
@@ -438,9 +533,12 @@ server <- function(input, output, session){
       }, 
       message = "Training model"
     )
-  }
+    }
   )
   
+  # Modeling tab
+  # Bring accuracy tab to front when you train
+  # Prevents progress bar from being covered up by tabs
   observeEvent(
     input$train, 
     {
@@ -460,6 +558,8 @@ server <- function(input, output, session){
     mod() %>% varImp() %>% plot()
   })
   
+  # Modeling tab
+  # Whether the user should have the option to show var importance
   output$showHide <- renderText({
     if(length(input$preds) > 1){
       "show"
@@ -468,6 +568,7 @@ server <- function(input, output, session){
     }
   })
   
+  # So that showHide can be used on the UI side
   outputOptions(output, "showHide", suspendWhenHidden = FALSE)
   
   # output$varImpInput <- renderUI({
@@ -481,6 +582,9 @@ server <- function(input, output, session){
   #   }
   # })
   
+  # Modeling tab
+  # Variable importance
+  # Show or hide var importance tab at appropriate times
   hideTab(inputId = "modTabs",
           target = "Variable Importance")
   
@@ -659,8 +763,18 @@ server <- function(input, output, session){
   
   observeEvent(input$getPrediction, {vals$pred <- predict(mod(), newdata = isolate(predSelections())) %>% as.character()})
   
-  output$prediction <- renderText({
-    vals$pred
+  output$prediction <- renderUI({
+    req(vals$pred)
+    
+    if(vals$pred == "Yes"){
+      HTML(paste0("The model predicts that this person ", strong("IS"), " a Star Wars Fan."))
+    } else if(vals$pred == "No"){
+      HTML(paste0("The model predicts that this person ", strong("IS NOT"), " a Star Wars Fan."))
+    } else if(is.null(vals$pred)){
+      HTML("")
+    } else{
+      stop("Error")
+    }
   })
   
   # Subset and Download Tab
@@ -701,7 +815,7 @@ server <- function(input, output, session){
 
 }
 
-shinyApp(ui, server) %>% runApp()
+shinyApp(ui, server) #%>% runApp()
 
 
 

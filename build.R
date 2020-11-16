@@ -1,5 +1,5 @@
 # Author: Joshua Burrows
-# Purpose: 
+# Purpose: Explore Star Wars viewership data
 # Date Created: 18 November 2020
 
 library(tidyverse)
@@ -199,17 +199,49 @@ favor <- rbind(getFavor(SW$han),
                getFavor(SW$yoda))
 
 
-charNames <- c("han", "luke", "leia", "anakin", "obiWan", "palpatine", "vader", "lando", "boba", "C3P0", "R2D2", "jarJar", "padme", "yoda") 
+charNames <- c("Han", "Luke", "Leia", "Anakin", "Obi Wan", "Palpatine", "Vader", "Lando", "Boba Fet", "C3P0", "R2D2", "Jar Jar", "Padme", "Yoda") 
 
 favor <- cbind(charNames, favor)
 
-colnames(favor) <- c("Character Names",
+colnames(favor) <- c("CharacterNames",
                      "Very Favorable", 
                      "Somewhat Favorable", 
                      "Neutral", 
                      "Somewhat Unfavorable", 
                      "Very Unfavorable", 
                      "Unfamiliar")
+
+favorRebel <- favor %>% filter(CharacterNames %in% c("Han", "Luke", "Leia", "Obi Wan", "Lando", "C3P0", "R2D2", "Yoda"))
+
+favorImperial <- favor %>% filter(CharacterNames %in% c("Palpatine", "Vader", "Boba Fet"))
+
+colnames(favor)[1] <- c("Character Names")
+
+colnames(favorRebel)[1] <- c("Character Names")
+
+colnames(favorImperial)[1] <- c("Character Names")
+
+# Demographic tables
+# Get tables
+demoGA <- SW %>% select(gender, age) %>% table() %>% as.tibble()
+demoGI <- SW %>% select(gender, HHIncome) %>% table() %>% as.tibble()
+demoAI <- SW %>% select(age, HHIncome) %>% table() %>% as.tibble()
+
+# Relevel factors before spreading
+demoGA$age <- factor(demoGA$age, levels = c("18-29", "30-44", "45-60", "> 60"))
+
+demoGI$HHIncome <- factor(demoGI$HHIncome, levels = c("$0 - $24,999", "$25,000 - $49,999", "$50,000 - $99,999", "$100,000 - $149,999", "$150,000+"))
+
+demoAI$age <- factor(demoAI$age, levels = c("18-29", "30-44", "45-60", "> 60"))
+
+demoAI$HHIncome <- factor(demoAI$HHIncome, levels = c("$0 - $24,999", "$25,000 - $49,999", "$50,000 - $99,999", "$100,000 - $149,999", "$150,000+"))
+
+# Spread tables for easier viewing 
+demoGA <- demoGA %>% spread(key = age, value = n)
+
+demoGI <- demoGI %>% spread(key = HHIncome, value = n)
+
+demoAI <- demoAI %>% spread(key = HHIncome, value = n)
 
 # Hierarchical clustering
 set.seed(234)

@@ -5,7 +5,7 @@ Joshua Burrows Project 3
 # Introduction
 
 The purpose of this project is to create a Shiny app to explore data
-about Star Wars fans. I used data that has been made available by
+about Star Wars fans. I used data that has been made available
 [here](https://github.com/fivethirtyeight/data/tree/master/star-wars-survey)
 by FiveThrityEight.
 
