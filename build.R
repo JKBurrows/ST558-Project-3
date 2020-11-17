@@ -15,7 +15,8 @@ set.seed(234)
 # here https://github.com/fivethirtyeight/data/tree/master/star-wars-survey
 SWCols <- c("Id", "Any", "fan", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI", "rankI", "rankII", "rankIII", "rankIV", "rankV", "rankVI", "han", "luke", "leia", "anakin", "obiWan", "palpatine", "vader", "lando", "boba", "C3P0", "R2D2", "jarJar", "padme", "yoda", "shotFirst", "familiarExpanded", "fanExpanded", "trekFan", "gender", "age", "HHIncome", "education", "location")
 
-SW <- read_csv("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/StarWars.csv", skip = 2, col_names = SWCols, col_types = cols(Id = col_double(), .default = col_factor(NULL))) %>% select(-Id)
+#SW <- read_csv("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/StarWars.csv", skip = 2, col_names = SWCols, col_types = cols(Id = col_double(), .default = col_factor(NULL))) %>% select(-Id)
+SW <- read_csv("StarWars.csv", skip = 2, col_names = SWCols, col_types = cols(Id = col_double(), .default = col_factor(NULL))) %>% select(-Id)
 
 replaceName <- function(vec){
   newVec <- SW[[vec]] %>% is.na() %>% ifelse("No", "Yes") %>% as.factor()
@@ -59,31 +60,29 @@ pctSeenOverall <- pctSeenOverall %>% layout(
   yaxis = list(title = "Viewership Proportion"), 
   margin = list(t = 50))
 
-# Male pct seen
-seenM <- SW %>% filter(gender == "Male") %>% select(Any, starts_with("Ep.")) %>% sapply(FUN = pctYes) %>% as_tibble()
+# Pct seen by gender 
+getPctSeen <- function(var, lev){
+  seen <- SW %>% filter(SW[[var]] == lev) %>% select(Any, starts_with("Ep.")) %>% sapply(FUN = pctYes) %>% as.data.frame()
+  
+  seen <- cbind(seen, lev)
+  
+  colnames(seen) <- c("pctSeen", var)
+  
+  seen$movieName <- seen %>% row.names()
+  
+  return(seen)
+}
 
-colnames(seenM) <- c("pctSeen")
+seenM <- getPctSeen(var = "gender", lev = "Male")
 
-seenM <- cbind(seenM, data.frame(Gender = c("Male")))
-
-seenM$movieName <- c("Any", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI")
-
-# Female pct seen
-seenF <- SW %>% filter(gender == "Female") %>% select(Any, starts_with("Ep.")) %>% sapply(FUN = pctYes) %>% as_tibble()
-
-colnames(seenF) <- c("pctSeen")
-
-seenF <- cbind(seenF, data.frame(Gender = c("Female")))
-
-seenF$movieName <- c("Any", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI")
+seenF <- getPctSeen(var = "gender", lev = "Female")
 
 seenMF <- rbind(seenM, seenF)
 
-# Plot 
 pctSeenGender <- plot_ly(data = seenMF, 
                          x = ~movieName, 
                          y = ~pctSeen, 
-                         color = ~Gender, 
+                         color = ~gender, 
                          type = "bar")
 
 pctSeenGender <- pctSeenGender %>% layout(
@@ -92,28 +91,11 @@ pctSeenGender <- pctSeenGender %>% layout(
   yaxis = list(title = "Viewership Proportion"), 
   margin = list(t = 50))
 
-# trekFan
-seenY <- SW %>% filter(trekFan == "Yes") %>% select(Any, starts_with("Ep.")) %>% sapply(FUN = pctYes) %>% as_tibble()
+# Pct seen by Trek fan
+seenTrekFan <- rbind(getPctSeen(var = "trekFan", lev = "Yes"), 
+                     getPctSeen(var = "trekFan", lev = "No"))
 
-colnames(seenY) <- c("pctSeen")
-
-seenY <- cbind(seenY, data.frame(trekFan = c("Yes")))
-
-seenY$movieName <- c("Any", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI")
-
-# Not trekFan
-seenN <- SW %>% filter(trekFan == "No") %>% select(Any, starts_with("Ep.")) %>% sapply(FUN = pctYes) %>% as_tibble()
-
-colnames(seenN) <- c("pctSeen")
-
-seenN <- cbind(seenN, data.frame(trekFan = c("No")))
-
-seenN$movieName <- c("Any", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI")
-
-seenYN <- rbind(seenY, seenN)
-
-# Plot
-pctSeenTrek <- plot_ly(data = seenYN, 
+pctSeenTrek <- plot_ly(data = seenTrekFan, 
                        x = ~movieName, 
                        y = ~pctSeen, 
                        color = ~trekFan, 
@@ -126,106 +108,32 @@ pctSeenTrek <- pctSeenTrek %>% layout(
   legend = list(title = list(text = "Trek fan?")),
   margin = list(t = 50))
 
-# Summarize rankings 
-getRanks <- function(vec){
-  subVec <- vec %>% na.omit()
-  
-  sum <- subVec %>% summary()
-  
-  df <- data.frame(First = sum[["1"]], 
-                   Second = sum[["2"]], 
-                   Third = sum[["3"]], 
-                   Fourth = sum[["4"]], 
-                   Fifth = sum[["5"]], 
-                   Sixth = sum[["6"]])
-  
-  df <- ((df / length(subVec)) * 100) %>% round(digits = 1)
-  
-  return(df)
-}
+# Pct seen by household income 
+pctSeenHHI <- rbind(
+  getPctSeen(var = "HHIncome", lev = "$0 - $24,999"), 
+  getPctSeen(var = "HHIncome", lev = "$25,000 - $49,999"), 
+  getPctSeen(var = "HHIncome", lev = "$50,000 - $99,999"), 
+  getPctSeen(var = "HHIncome", lev = "$100,000 - $149,999"), 
+  getPctSeen(var = "HHIncome", lev = "$150,000+") 
+)
 
-ranks <- rbind(getRanks(SW[["rankI"]]), 
-               getRanks(SW[["rankII"]]),
-               getRanks(SW[["rankIII"]]), 
-               getRanks(SW[["rankIV"]]), 
-               getRanks(SW[["rankV"]]), 
-               getRanks(SW[["rankVI"]]))
+pctSeenHHI <- plot_ly(data = pctSeenHHI, 
+                      x = ~movieName, 
+                      y = ~pctSeen, 
+                      color = ~HHIncome)
 
-ranks <- cbind(data.frame(movieName = c(" Ep. I", " Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI")), ranks)
-
-# Summarize fan rankings 
-fans <- SW %>% filter(fan == "Yes")
-
-fanRanks <- rbind(getRanks(fans[["rankI"]]),  
-                  getRanks(fans[["rankII"]]),
-                  getRanks(fans[["rankIII"]]), 
-                  getRanks(fans[["rankIV"]]), 
-                  getRanks(fans[["rankV"]]), 
-                  getRanks(fans[["rankVI"]]))
-
-fanRanks <- cbind(data.frame(movieName = c(" Ep. I", " Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI")), fanRanks)
-
-# Character favorability 
-getFavor <- function(vec){
-  subVec <- vec %>% na.omit()
-  
-  sum <- subVec %>% summary()
-  
-  df <- data.frame(vFavor = sum[["Very favorably"]], 
-                   sFavor = sum[["Somewhat favorably"]], 
-                   neutral = sum[["Neither favorably nor unfavorably (neutral)"]], 
-                   sUn = sum[["Somewhat unfavorably"]],
-                   vUn = sum[["Very unfavorably"]], 
-                   un = sum[["Unfamiliar (N/A)"]])
-  
-  df <- ((df / length(subVec)) * 100) %>% round(digits = 1)
-  
-  return(df)
-}
-
-favor <- rbind(getFavor(SW$han), 
-               getFavor(SW$luke), 
-               getFavor(SW$leia), 
-               getFavor(SW$anakin), 
-               getFavor(SW$obiWan), 
-               getFavor(SW$palpatine), 
-               getFavor(SW$vader), 
-               getFavor(SW$lando), 
-               getFavor(SW$boba), 
-               getFavor(SW$C3P0), 
-               getFavor(SW$R2D2), 
-               getFavor(SW$jarJar), 
-               getFavor(SW$padme), 
-               getFavor(SW$yoda))
-
-
-charNames <- c("Han", "Luke", "Leia", "Anakin", "Obi Wan", "Palpatine", "Vader", "Lando", "Boba Fet", "C3P0", "R2D2", "Jar Jar", "Padme", "Yoda") 
-
-favor <- cbind(charNames, favor)
-
-colnames(favor) <- c("CharacterNames",
-                     "Very Favorable", 
-                     "Somewhat Favorable", 
-                     "Neutral", 
-                     "Somewhat Unfavorable", 
-                     "Very Unfavorable", 
-                     "Unfamiliar")
-
-favorRebel <- favor %>% filter(CharacterNames %in% c("Han", "Luke", "Leia", "Obi Wan", "Lando", "C3P0", "R2D2", "Yoda"))
-
-favorImperial <- favor %>% filter(CharacterNames %in% c("Palpatine", "Vader", "Boba Fet"))
-
-colnames(favor)[1] <- c("Character Names")
-
-colnames(favorRebel)[1] <- c("Character Names")
-
-colnames(favorImperial)[1] <- c("Character Names")
+pctSeenHHI <- pctSeenHHI %>% layout(
+  title = "Star Wars Viewership by Household Income", 
+  xaxis = list(title = "Movie Name"), 
+  yaxis = list(title = "Viewership Proportion"),
+  legend = list(title = list(text = "Household Income")),
+  margin = list(t = 50))
 
 # Demographic tables
 # Get tables
-demoGA <- SW %>% select(gender, age) %>% table() %>% as.tibble()
-demoGI <- SW %>% select(gender, HHIncome) %>% table() %>% as.tibble()
-demoAI <- SW %>% select(age, HHIncome) %>% table() %>% as.tibble()
+demoGA <- SW %>% select(gender, age) %>% table() %>% as_tibble()
+demoGI <- SW %>% select(gender, HHIncome) %>% table() %>% as_tibble()
+demoAI <- SW %>% select(age, HHIncome) %>% table() %>% as_tibble()
 
 # Relevel factors before spreading
 demoGA$age <- factor(demoGA$age, levels = c("18-29", "30-44", "45-60", "> 60"))
@@ -242,6 +150,27 @@ demoGA <- demoGA %>% spread(key = age, value = n)
 demoGI <- demoGI %>% spread(key = HHIncome, value = n)
 
 demoAI <- demoAI %>% spread(key = HHIncome, value = n)
+
+# Movie ranking by age tables 
+SW$age <- factor(SW$age, levels = c("18-29", "30-44", "45-60", "> 60"))
+SW$rankI <- factor(SW$rankI, levels = c("1", "2", "3", "4", "5", "6"))
+SW$rankII <- factor(SW$rankII, levels = c("1", "2", "3", "4", "5", "6"))
+SW$rankIII <- factor(SW$rankIII, levels = c("1", "2", "3", "4", "5", "6"))
+SW$rankIV <- factor(SW$rankIV, levels = c("1", "2", "3", "4", "5", "6"))
+SW$rankV <- factor(SW$rankV, levels = c("1", "2", "3", "4", "5", "6"))
+SW$rankVI <- factor(SW$rankVI, levels = c("1", "2", "3", "4", "5", "6"))
+
+AI <- SW %>% select(age, rankI) %>% table() %>% as.data.frame() %>% as_tibble() %>% spread(key = rankI, value = Freq)
+
+AII <- SW %>% select(age, rankII) %>% table() %>% as.data.frame() %>% as_tibble() %>% spread(key = rankII, value = Freq)
+
+AIII <- SW %>% select(age, rankIII) %>% table() %>% as.data.frame() %>% as_tibble() %>% spread(key = rankIII, value = Freq)
+
+AIV <- SW %>% select(age, rankIV) %>% table() %>% as.data.frame() %>% as_tibble() %>% spread(key = rankIV, value = Freq)
+
+AV <- SW %>% select(age, rankV) %>% table() %>% as.data.frame() %>% as_tibble() %>% spread(key = rankV, value = Freq)
+
+AVI <- SW %>% select(age, rankVI) %>% table() %>% as.data.frame() %>% as_tibble() %>% spread(key = rankVI, value = Freq)
 
 # Hierarchical clustering
 set.seed(234)
@@ -335,6 +264,20 @@ getLogReg <- function(preds){
                   family = "binomial")
   
   return(logReg)
+}
+
+# Boosted logistic regression 
+train1 <- train %>% as.data.frame()
+
+getBoostLogReg <- function(preds, tnSize){
+  form <- getFormula(preds)
+  
+  boostLogReg <- train(form, 
+                       data = train1, 
+                       method = "LogitBoost", 
+                       trControl = trainControl(method = "cv", number = 10), 
+                       tuneLength = tnSize
+  )
 }
 
 

@@ -72,8 +72,7 @@ ui <- dashboardPage(
                    radioButtons("info", 
                                 "Which Info", 
                                 choices = c("Views", 
-                                            "Movie Ratings",
-                                            "Character Ratings", 
+                                            "Movie Rankings",
                                             "Demographic Info"
                                             )),
                    width = NULL
@@ -82,31 +81,26 @@ ui <- dashboardPage(
                    condition = "input.info == 'Views'",
                    box(radioButtons("plots",
                                   "Breakdown", 
-                                  choices = c("Overall", 
+                                  choices = c("Overall",
                                               "Gender",
-                                              "Trek Fan")), 
+                                              "Trek Fan", 
+                                              "Household Income")), 
                      width = NULL)), 
                  conditionalPanel(
-                   condition = "input.info == 'Movie Ratings'", 
+                   condition = "input.info == 'Movie Rankings'",
                    box(
-                     radioButtons("rankInfo", 
-                                  "Breakdown", 
-                                  choices = c("Overall", 
-                                              "SW Fans")), 
-                       width = NULL)), 
-                 conditionalPanel(
-                   condition = "input.info == 'Character Ratings'", 
-                   box(
-                     radioButtons("charRankInfo", 
-                                  "Breakdown", 
-                                  choiceNames = c("All", 
-                                                  "Rebel Scum", 
-                                                  "Imperial Bucketheads"), 
-                                  choiceValues = c("all", 
-                                                   "rebel", 
-                                                   "imperial")), 
+                     radioButtons(
+                       "movieToRank", 
+                       "Movie", 
+                       choices = c("Ep. I", 
+                                   "Ep. II", 
+                                   "Ep. III", 
+                                   "Ep. IV", 
+                                   "Ep. V", 
+                                   "Ep. VI")
+                     ), 
                      width = NULL
-                   )
+                   ),
                  ), 
                  conditionalPanel(
                    condition = "input.info == 'Demographic Info'",
@@ -133,21 +127,16 @@ ui <- dashboardPage(
               plotlyOutput("plotEDA")
             ), 
             conditionalPanel(
-              condition = "input.info == 'Movie Ratings'", 
-              h3(textOutput("numericEDATitle")), 
-              h4("Rows add to 100"),
-              DT::dataTableOutput("numericEDA")
-            ), 
-            conditionalPanel(
-              condition = "input.info == 'Character Ratings'",
-              h3("Charactor Favorability Ratings as Percentages"),
-              h4("Rows add to 100"),
-              DT::dataTableOutput("charNumericEDA")
-            ), 
-            conditionalPanel(
-              h3(textOutput("demoText")), 
               condition = "input.info == 'Demographic Info'",
+              h3(textOutput("demoText")),
               tableOutput("demoEDA")
+            ),
+            conditionalPanel(
+              condition = "input.info == 'Movie Rankings'",
+              h3(textOutput("rankingsAgeText")), 
+              h4("Respondents were asked to rank the Star Wars movies"),
+              h4("from favorite (1) to least favorite (6)"),
+              tableOutput("rankingsAgeEDA")
             )
           )
         )
@@ -210,7 +199,8 @@ ui <- dashboardPage(
                 "whichModel", 
                 "Pick a Model", 
                 choices = c("Boosted Tree", 
-                            "Logistic Regression"), 
+                            "Logistic Regression", 
+                            "Boosted Logistic Regression"), 
                 selected = "Boosted Tree"
               ), 
               checkboxGroupInput(
@@ -232,11 +222,15 @@ ui <- dashboardPage(
                 selected = NULL
               ),
               conditionalPanel(
-                condition = "input.whichModel == 'Boosted Tree'", 
+                condition = "input.whichModel == 'Boosted Tree' || input.whichModel == 'Boosted Logistic Regression'", 
                 selectInput(
                   "tune", 
                   "Tuning Grid Size", 
-                  choices = c(1, 2, 3, 4, 5)
+                  choices = list("1" = 1, 
+                                 "2" = 2, 
+                                 "3 Long Wait" = 3, 
+                                 "4 Really Long Wait" = 4, 
+                                 "5 Pit of Sarlacc" = 5)
                 )
               ),
               #uiOutput("varImpInput"),
@@ -249,11 +243,17 @@ ui <- dashboardPage(
                         choiceValues = c(TRUE, FALSE)
                       )
               ),
-              # actionButton(
-              #   "train", 
-              #   "Train Model"
-              # ),
-              uiOutput("trainModel"),
+              conditionalPanel(
+                condition = "output.showHideTrain == 'show'", 
+                actionButton(
+                  "train",
+                  "Train Model"
+                )
+              ),
+              conditionalPanel(
+                condition = "output.showHideTrain == 'hide'", 
+                h4("Pick Some Predictors")
+              ),
               width = NULL
             )
           ), 
@@ -291,6 +291,7 @@ ui <- dashboardPage(
                   column(
                     width = 6, 
                     box(
+                      h3("Predict whether someone is a Star Wars fan"), 
                       actionButton(
                         "getPrediction", 
                         "Make Prediction"
@@ -353,52 +354,36 @@ server <- function(input, output, session){
       pctSeenGender
     } else if(input$plots == "Trek Fan"){
       pctSeenTrek
+    } else if(input$plots == "Household Income"){
+      pctSeenHHI
     } else{
       stop("Error")
     }
   ) 
   
   # EDA tab
-  # Get movie rankings summary 
-  output$numericEDA <- DT::renderDataTable(
-    {
-      if(input$rankInfo == "Overall"){
-        ranks
-      } else if(input$rankInfo == "SW Fans"){
-        fanRanks
-      } else{
-        stop("Error")
-      }
-    }, 
-    options = list(scrollX = TRUE)
+  # Movie rankings by age 
+  output$rankingsAgeEDA <- renderTable(
+    if(input$movieToRank == "Ep. I"){
+      AI
+    } else if(input$movieToRank == "Ep. II"){
+      AII
+    } else if(input$movieToRank == "Ep. III"){
+      AIII
+    } else if(input$movieToRank == "Ep. IV"){
+      AIV
+    } else if(input$movieToRank == "Ep. V"){
+      AV
+    } else if(input$movieToRank == "Ep. VI"){
+      AVI
+    } else{
+      stop("Error") 
+    }
   )
   
-  output$numericEDATitle <- renderText(
-    if(input$rankInfo == "Overall"){
-      "Movie Rankings as Percentages"
-    } else if(input$rankInfo == "SW Fans"){
-      "Movie Rankings as Percentages, Star Wars Fans Only"
-    } else{
-      stop("Error")
-    }
-    )
-  
-  # EDA tab
-  # Get character ratings summary 
-  output$charNumericEDA <- DT::renderDataTable(
-    {
-      if(input$charRankInfo == "all"){
-        favor
-      } else if(input$charRankInfo == "rebel"){
-        favorRebel
-      } else if(input$charRankInfo == "imperial"){
-        favorImperial
-      } else{
-        stop("Error")
-      }
-    }, 
-    options = list(scrollX = TRUE),
-    )
+  output$rankingsAgeText <- renderText(
+    paste0("Ranking of Star Wars ", input$movieToRank, " by Respondent Age")
+  )
   
   # EDA tab
   # Demo info table 
@@ -500,18 +485,16 @@ server <- function(input, output, session){
     }
   )
   
-  # Modeling tab
-  # UI train button
-  output$trainModel <- renderUI({
+  output$showHideTrain <- renderText({
     if(length(input$preds) > 0){
-    actionButton(
-      "train",
-      "Train Model"
-    )
+      "show"
     } else{
-      h5("Pick Some Predictors")
+      "hide"
     }
   })
+  
+  outputOptions(output, "showHideTrain", suspendWhenHidden = FALSE)
+  
   
   # Modeling tab
   # Create model
@@ -522,12 +505,15 @@ server <- function(input, output, session){
         
         if(isolate(input$whichModel) == "Boosted Tree"){
           boostMod <- getBoost(preds = isolate(input$preds), 
-                         tnSize = isolate(input$tune))
+                               tnSize = isolate(input$tune))
           boostMod
         } else if(isolate(input$whichModel) == "Logistic Regression"){
           logReg <- getLogReg(preds = isolate(input$preds))
           logReg
-        } else{
+        } else if(isolate(input$whichModel) == "Boosted Logistic Regression"){
+          boostLogReg <- getBoostLogReg(preds = isolate(input$preds), tnSize = isolate(input$tune))
+        }
+        else{
           stop("Error")
         }
       }, 
@@ -640,12 +626,16 @@ server <- function(input, output, session){
   
   # Modeling tab
   # Prediction 
+  # Get predictors in current model
   currentPreds <- reactive({
     req(input$train)
     
     isolate(input$preds)
   })
   
+  # Modeling tab
+  # Prediction 
+  # Let user select values for predictors in current model
   output$genderPredInput <- renderUI({
     if("gender" %in% currentPreds()){
       selectInput(
@@ -722,6 +712,9 @@ server <- function(input, output, session){
     }
   })
   
+  # Modeling tab
+  # Prediction 
+  # Put user selected values of predictors into one object 
   predSelections <- reactive({
     df <- tibble(gender = "", 
                  trekFan = "", 
@@ -757,12 +750,18 @@ server <- function(input, output, session){
     df
   })
   
+  # Modeling tab
+  # Prediction 
+  # Get prediction
   vals <- reactiveValues(pred = NULL)
   
   observeEvent(input$train, {vals$pred <- NULL})
   
   observeEvent(input$getPrediction, {vals$pred <- predict(mod(), newdata = isolate(predSelections())) %>% as.character()})
   
+  # Modeling tab
+  # Prediction 
+  # Output prediction
   output$prediction <- renderUI({
     req(vals$pred)
     
@@ -817,7 +816,7 @@ server <- function(input, output, session){
 
 shinyApp(ui, server) #%>% runApp()
 
-
+#options(shiny.reactlog=TRUE) 
 
 
 
