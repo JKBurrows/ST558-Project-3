@@ -20,7 +20,5 @@ To run the app, run the following code in R on your computer:
 ``` r
 install.packages(c("shiny", "shinydashboard", "tidyverse", "DT", "dendextend", "caret", "gbm", "formula.tools", "cluster", "knitr", "devtools", "rmarkdown", "plotly"))
 
-library(devtools)
-
-source_url("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/app.R")
+devtools::source_url("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/app.R")
 ```
