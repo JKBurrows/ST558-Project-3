@@ -4,7 +4,6 @@
 
 library(tidyverse)
 library(cluster)
-#library(knitr)
 library(caret)
 library(plotly)
 
@@ -18,7 +17,7 @@ set.seed(234)
 # Col names 
 SWCols <- c("Id", "Any", "fan", "Ep. I", "Ep. II", "Ep. III", "Ep. IV", "Ep. V", "Ep. VI", "rankI", "rankII", "rankIII", "rankIV", "rankV", "rankVI", "han", "luke", "leia", "anakin", "obiWan", "palpatine", "vader", "lando", "boba", "C3P0", "R2D2", "jarJar", "padme", "yoda", "shotFirst", "familiarExpanded", "fanExpanded", "trekFan", "gender", "age", "HHIncome", "education", "location")
 
-# Read and clean data 
+# Read and clean data
 # Read from the GitHub repo for this app
 SW <-
   read_csv(
@@ -30,17 +29,7 @@ SW <-
   ) %>%
   select(-Id)
 
-# SW <- 
-#   read_csv(
-#     "StarWars.csv", 
-#     skip = 2, 
-#     col_names = SWCols, 
-#     col_types = cols(Id = col_double(), 
-#                      .default = col_factor(NULL))
-#   ) %>% 
-#   select(-Id)
-
-# Read and clean 
+# Read and clean data 
 # Replace movie names with 'Yes' or 'No' to indicate
 # whether the respondent has seen the movie 
 replaceName <- function(vec){
@@ -207,7 +196,7 @@ pctSeenHHI <-
     title = "Star Wars Viewership by Household Income", 
     xaxis = list(title = "Movie Name"), 
     yaxis = list(title = "Viewership Proportion"),
-    legend = list(title = list(text = "Household Income (Thousands)")),
+    legend = list(title = list(text = "Household Income")),
     margin = list(t = 50)
   )
 
@@ -403,7 +392,8 @@ train <- subSW[trainIndex,]
 test <- subSW[-trainIndex,]
 
 # Models 
-# Boosted tree tuning grid
+# Function takes tuning grid size and returns
+# boosted tree tuning grid
 getBTTuneGr <- function(size){
   seq1 <- seq(from = 50, to = 300, by = 50)
   seq2 <- 1:6
@@ -424,7 +414,7 @@ getBTTuneGr <- function(size){
 }
 
 # Models 
-# Function takes predictors returns formula 
+# Function takes predictors and returns formula 
 getFormula <- function(preds){
   form <- "fan ~ "
   
@@ -442,7 +432,7 @@ getFormula <- function(preds){
 }
 
 # Models 
-# Function takes predictors and tuning grid size
+# Function takes predictors and tuning grid size,
 # returns boosted tree model 
 getBoost <- function(preds, tnSize){
   

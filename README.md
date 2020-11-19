@@ -11,14 +11,14 @@ by FiveThrityEight.
 
 I made use of the following packages: *shiny*, *shinydashboard*,
 *tidyverse*, *DT*, *dendextend*, *caret*, *gbm*, *formula.tools*,
-*cluster*, *knitr*, *devtools*, *rmarkdown*, and *plotly*.
+*cluster*, *devtools*, *rmarkdown*, and *plotly*.
 
 # Run App
 
 To run the app, run the following code in R on your computer:
 
 ``` r
-install.packages(c("shiny", "shinydashboard", "tidyverse", "DT", "dendextend", "caret", "gbm", "formula.tools", "cluster", "knitr", "devtools", "rmarkdown", "plotly"))
+install.packages(c("shiny", "shinydashboard", "tidyverse", "DT", "dendextend", "caret", "gbm", "formula.tools", "cluster", "devtools", "rmarkdown", "plotly"))
 
 devtools::source_url("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/app.R")
 ```

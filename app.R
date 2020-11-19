@@ -12,7 +12,6 @@ library(formula.tools)
 
 # Load premade objects and functions 
 source("https://raw.githubusercontent.com/JKBurrows/ST558-Project-3/main/build.R")
-#source("build.R")
 
 ui <- dashboardPage(
   
@@ -57,6 +56,7 @@ ui <- dashboardPage(
     tabItems(
       
       # Home page 
+      # Explains purpose of app and how to navigate
       tabItem(
         tabName = "home", 
         fluidRow(
@@ -64,7 +64,7 @@ ui <- dashboardPage(
             width = 6, 
             h2("About This App"), 
             box(
-              h4("The purpose of this app is to explore data about Star Wars viewership. I used data that has been made available", HTML("<a href='https://github.com/fivethirtyeight/data/tree/master/star-wars-survey'>here</a>"), "by ", HTML("<a href='https://fivethirtyeight.com/'>FiveThrityEight</a>"), "."),
+              h4("The purpose of this app is to explore data about Star Wars viewership. I used data that has been made available", HTML("<a href='https://github.com/fivethirtyeight/data/tree/master/star-wars-survey'>here</a>"), "by ", HTML("<a href='https://fivethirtyeight.com/'>FiveThrityEight</a>"), ". This data was collected through ", HTML("<a href='https://www.surveymonkey.com/market-research/solutions/audience-panel/'>SurveyMonkey Audience</a>"), "during June 2014."),
               h4("Use the tabs along the left hand side to navigate."), 
               width = NULL
             )
@@ -94,7 +94,7 @@ ui <- dashboardPage(
           # User inputs
           column(
             width = 3,
-            # Plot or summary name 
+            # User picks what to plot or summarize  
             box(
               radioButtons(
                 "info", 
@@ -105,7 +105,7 @@ ui <- dashboardPage(
               ),
               width = NULL
             ),
-            # How to group data 
+            # User indicates how to group data 
             conditionalPanel(
               condition = "input.info == 'Views'",
               box(
@@ -184,7 +184,7 @@ ui <- dashboardPage(
           column(
             width = 3, 
             box(
-              # Display a subset?
+              # User picks whether to subset data 
               radioButtons(
                 "dendSubset", 
                 "Subsets", 
@@ -192,7 +192,7 @@ ui <- dashboardPage(
                             "Male", 
                             "Female")
               ), 
-              # How many clusters do you want? 
+              # User picks number of clusters 
               selectInput(
                 "numClust", 
                 "Number of Clusters", 
@@ -201,7 +201,7 @@ ui <- dashboardPage(
               ), 
               width = NULL
             ), 
-            # Click to download plot
+            # User clicks to download plot
             box(
               downloadButton(
                 "downloadDend", 
@@ -210,7 +210,7 @@ ui <- dashboardPage(
               helpText("Download dendrogram with selected clustering"), 
               width = NULL
             ),
-            # Click to download data 
+            # User clicks to download data 
             box(
               downloadButton(
                 "downloadClust", 
@@ -236,7 +236,7 @@ ui <- dashboardPage(
           column(
             width = 3, 
             box(
-              # Pick model type 
+              # User picks model type 
               radioButtons(
                 "whichModel", 
                 "Pick a Model", 
@@ -245,7 +245,7 @@ ui <- dashboardPage(
                             "Boosted Logistic Regression"), 
                 selected = "Boosted Tree"
               ),
-              # Pick predictors to include
+              # User picks predictors to include
               checkboxGroupInput(
                 "preds", 
                 "Select Predictors", 
@@ -267,7 +267,7 @@ ui <- dashboardPage(
                                  "location"),
                 selected = NULL
               ),
-              # Pick tuning grid size if appropriate
+              # User picks tuning grid size if appropriate
               conditionalPanel(
                 condition = "input.whichModel == 'Boosted Tree' || input.whichModel == 'Boosted Logistic Regression'", 
                 selectInput(
@@ -281,7 +281,8 @@ ui <- dashboardPage(
                                  "6 Pit of Sarlacc" = 6)
                 )
               ),
-              # Display variable importance? 
+              # User decides whether to 
+              # display variable importance
               conditionalPanel(
                 condition = "output.showHide == 'show'", 
                 radioButtons(
@@ -291,7 +292,7 @@ ui <- dashboardPage(
                         choiceValues = c(TRUE, FALSE)
                 )
               ),
-              # Click button to train model 
+              # User clicks button to train model 
               conditionalPanel(
                 condition = "output.showHideTrain == 'show'", 
                 actionButton(
@@ -347,7 +348,7 @@ ui <- dashboardPage(
                   # Output prediction 
                   column(
                     width = 5, 
-                    # Click to get prediction 
+                    # User clicks to get prediction 
                     box(
                       h3("Predict whether someone is a Star Wars fan"), 
                       actionButton(
@@ -379,7 +380,7 @@ ui <- dashboardPage(
           # User inputs 
           column(
             width = 3,
-            # How to filter data 
+            # User decides how to filter data 
             box(
               checkboxGroupInput(
                 "genderSubset", 
@@ -393,7 +394,7 @@ ui <- dashboardPage(
               ), 
               width = NULL
             ), 
-            # Click to download 
+            # User clicks to download 
             box(
               downloadButton("download", 
                              "Download"), 
@@ -413,7 +414,7 @@ ui <- dashboardPage(
 
 server <- function(input, output, session){
   # EDA tab
-  # Get plots 
+  # Output plots 
   output$plotEDA <- renderPlotly(
     if(input$plots == "Overall"){
       pctSeenOverall
@@ -429,7 +430,7 @@ server <- function(input, output, session){
   ) 
   
   # EDA tab
-  # Summaries of movie rankings by age 
+  # Output summaries of movie rankings by age 
   output$rankingsAgeEDA <- renderTable(
     if(input$movieToRank == "Ep. I"){
       AI
@@ -457,7 +458,7 @@ server <- function(input, output, session){
   )
   
   # EDA tab
-  # Demographic info tables  
+  # Output demographic info tables  
   output$demoEDA <- renderTable(
     {
       if(input$demoInfo == "GA"){
@@ -674,7 +675,7 @@ server <- function(input, output, session){
   
   # Modeling tab 
   # Variable importance
-  # Allow showHide to be used on the UI side
+  # Allow show hide var importance to be used on the UI side
   outputOptions(
     output, 
     "showHide", 
@@ -781,7 +782,6 @@ server <- function(input, output, session){
   # Modeling tab
   # Prediction 
   # Let user select values for predictors in current model
-  
   output$rankIPredInput <- renderUI(
     {
       if("rankI" %in% currentPreds()){
@@ -1008,7 +1008,7 @@ server <- function(input, output, session){
     }
   )
   
-  # Subset and Download Tab
+  # Subset and download Tab
   # Get filtered data 
   SWSub <- reactive(
     {
