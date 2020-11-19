@@ -386,7 +386,9 @@ subSW <-
   ) %>% 
   na.omit()
 
-trainIndex <- createDataPartition(subSW$fan, p = .7, list = FALSE)
+trainIndex <- 
+  createDataPartition(subSW$fan, p = .7, list = FALSE) %>% 
+  as.numeric()
 
 train <- subSW[trainIndex,] 
 test <- subSW[-trainIndex,]
